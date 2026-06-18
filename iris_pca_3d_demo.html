@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iris PCA 3D Demo</title>
+  <style>
+    :root {
+      --panel: rgba(255, 255, 255, 0.86);
+      --ink: #17212b;
+      --muted: #64717d;
+      --line: rgba(28, 38, 48, 0.14);
+      --setosa: #f5d83d;
+      --versicolor: #2f9c98;
+      --virginica: #6b2677;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #f7f8f9;
+    }
+
+    #scene {
+      position: fixed;
+      inset: 0;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: min(840px, calc(100vw - 36px));
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    h1 {
+      flex: 1;
+      margin: 0;
+      font-size: clamp(18px, 2.2vw, 27px);
+      font-weight: 650;
+      line-height: 1.1;
+      text-align: center;
+      letter-spacing: 0;
+    }
+
+    .status {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 5;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 32px rgba(37, 45, 53, 0.12);
+      backdrop-filter: blur(14px);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dock {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 5;
+      display: grid;
+      gap: 10px;
+      width: min(430px, calc(100vw - 36px));
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 14px 40px rgba(37, 45, 53, 0.14);
+      backdrop-filter: blur(14px);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 28px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .legend label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.64);
+      font-size: 12px;
+      color: #27323d;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .legend input {
+      width: 14px;
+      height: 14px;
+      accent-color: currentColor;
+      flex: 0 0 auto;
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
+      flex: 0 0 auto;
+    }
+
+    .legend span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: 82px 1fr 38px;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #2f9c98;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #f1f5f4;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .toggle input {
+      width: 16px;
+      height: 16px;
+      accent-color: #2f9c98;
+    }
+
+    .tooltip {
+      position: fixed;
+      z-index: 8;
+      display: none;
+      min-width: 150px;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 12px 30px rgba(37, 45, 53, 0.16);
+      backdrop-filter: blur(14px);
+      pointer-events: none;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .tooltip strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .error {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #7a1f26;
+      background: #fff3f4;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    @media (max-width: 700px) {
+      .status {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+      }
+
+      .dock {
+        left: 12px;
+        right: 12px;
+        bottom: 56px;
+        width: auto;
+      }
+
+      .legend {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="scene" aria-label="Interactive 3D PCA scatter plot"></main>
+
+  <div class="topbar">
+    <h1>First three PCA dimensions</h1>
+  </div>
+
+  <div class="status" id="status">
+    <span id="sampleCount">150 samples</span>
+    <span>|</span>
+    <span id="varianceText">PCA</span>
+  </div>
+
+  <section class="dock" aria-label="Visualization controls">
+    <div class="legend" id="legend"></div>
+    <div class="control">
+      <label for="pointSize">Point size</label>
+      <input id="pointSize" type="range" min="0.045" max="0.13" step="0.005" value="0.075">
+      <output id="pointSizeValue">0.08</output>
+    </div>
+    <div class="row">
+      <label class="toggle" for="autoRotate">
+        <input id="autoRotate" type="checkbox" checked>
+        Auto rotate
+      </label>
+      <button id="resetView" type="button" title="Reset view" aria-label="Reset view">Reset</button>
+    </div>
+  </section>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "./node_modules/three/build/three.module.js";
+    import { OrbitControls } from "./node_modules/three/examples/jsm/controls/OrbitControls.js";
+
+    const COLORS = {
+      setosa: 0xf5d83d,
+      versicolor: 0x2f9c98,
+      virginica: 0x6b2677
+    };
+
+    const sceneRoot = document.querySelector("#scene");
+    const legend = document.querySelector("#legend");
+    const tooltip = document.querySelector("#tooltip");
+    const pointSize = document.querySelector("#pointSize");
+    const pointSizeValue = document.querySelector("#pointSizeValue");
+    const autoRotate = document.querySelector("#autoRotate");
+    const resetView = document.querySelector("#resetView");
+    const sampleCount = document.querySelector("#sampleCount");
+    const varianceText = document.querySelector("#varianceText");
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    sceneRoot.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf7f8f9);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(5.2, 4.2, 5.6);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.9;
+    controls.minDistance = 3.2;
+    controls.maxDistance = 11;
+    controls.target.set(0, 0, 0);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xcbd3d8, 2.3));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
+    keyLight.position.set(3, 5, 4);
+    scene.add(keyLight);
+
+    const plotGroup = new THREE.Group();
+    scene.add(plotGroup);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const pointMeshes = [];
+    const speciesVisibility = new Map();
+    let hovered = null;
+    let data = null;
+
+    function showError(message) {
+      document.body.innerHTML = `<div class="error">${message}</div>`;
+    }
+
+    function makeTextSprite(text, options = {}) {
+      const fontSize = options.fontSize ?? 34;
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      context.font = `${fontSize}px Arial`;
+      const metrics = context.measureText(text);
+      canvas.width = Math.ceil(metrics.width + 36);
+      canvas.height = fontSize + 28;
+      context.font = `${fontSize}px Arial`;
+      context.fillStyle = options.color ?? "#1e2a33";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      const scale = options.scale ?? 0.44;
+      sprite.scale.set((canvas.width / canvas.height) * scale, scale, 1);
+      return sprite;
+    }
+
+    function makeLine(start, end, color = 0xb4bcc3, opacity = 0.85) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...start),
+        new THREE.Vector3(...end)
+      ]);
+      const material = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity
+      });
+      return new THREE.Line(geometry, material);
+    }
+
+    function addGridBox(size = 4.8, divisions = 8) {
+      const half = size / 2;
+      const step = size / divisions;
+      const grid = new THREE.Group();
+
+      for (let i = 0; i <= divisions; i += 1) {
+        const v = -half + i * step;
+        grid.add(makeLine([-half, -half, v], [half, -half, v], 0xb8c0c7, 0.68));
+        grid.add(makeLine([v, -half, -half], [v, -half, half], 0xb8c0c7, 0.68));
+        grid.add(makeLine([-half, v, -half], [half, v, -half], 0xb8c0c7, 0.62));
+        grid.add(makeLine([v, -half, -half], [v, half, -half], 0xb8c0c7, 0.62));
+        grid.add(makeLine([-half, v, -half], [-half, v, half], 0xb8c0c7, 0.54));
+        grid.add(makeLine([-half, -half, v], [-half, half, v], 0xb8c0c7, 0.54));
+      }
+
+      const axes = [
+        { start: [-half, -half, -half], end: [half + 0.48, -half, -half], label: "1st Eigenvector", position: [half + 0.24, -half - 0.12, -half] },
+        { start: [-half, -half, -half], end: [-half, half + 0.48, -half], label: "2nd Eigenvector", position: [-half + 0.46, half - 0.14, -half + 0.16] },
+        { start: [-half, -half, -half], end: [-half, -half, half + 0.48], label: "3rd Eigenvector", position: [-half + 0.88, -half + 0.18, half + 0.1] }
+      ];
+
+      axes.forEach((axis) => {
+        grid.add(makeLine(axis.start, axis.end, 0x3a4650, 0.95));
+        const label = makeTextSprite(axis.label, { fontSize: 34, scale: 0.23 });
+        label.position.set(...axis.position);
+        grid.add(label);
+      });
+
+      plotGroup.add(grid);
+    }
+
+    function normalizePoints(points) {
+      const keys = ["pc1", "pc2", "pc3"];
+      const ranges = Object.fromEntries(keys.map((key) => {
+        const values = points.map((point) => point[key]);
+        return [key, { min: Math.min(...values), max: Math.max(...values) }];
+      }));
+
+      return points.map((point) => {
+        const scaled = {};
+        keys.forEach((key) => {
+          const range = ranges[key].max - ranges[key].min || 1;
+          scaled[key] = ((point[key] - ranges[key].min) / range - 0.5) * 4.25;
+        });
+        return { ...point, x: scaled.pc1, y: scaled.pc2, z: scaled.pc3 };
+      });
+    }
+
+    function buildLegend(targetNames) {
+      legend.innerHTML = "";
+      targetNames.forEach((name) => {
+        speciesVisibility.set(name, true);
+        const label = document.createElement("label");
+        label.style.color = `#${COLORS[name].toString(16).padStart(6, "0")}`;
+        label.innerHTML = `
+          <input type="checkbox" checked data-species="${name}">
+          <span class="swatch" style="background:#${COLORS[name].toString(16).padStart(6, "0")}"></span>
+          <span>${name}</span>
+        `;
+        legend.appendChild(label);
+      });
+
+      legend.querySelectorAll("input").forEach((checkbox) => {
+        checkbox.addEventListener("change", (event) => {
+          const species = event.target.dataset.species;
+          speciesVisibility.set(species, event.target.checked);
+          pointMeshes.forEach((mesh) => {
+            if (mesh.userData.species === species) {
+              mesh.visible = event.target.checked;
+            }
+          });
+        });
+      });
+    }
+
+    function buildPoints(points) {
+      const radius = Number(pointSize.value);
+      const geometry = new THREE.SphereGeometry(radius, 18, 14);
+
+      points.forEach((point) => {
+        const material = new THREE.MeshStandardMaterial({
+          color: COLORS[point.species],
+          roughness: 0.36,
+          metalness: 0.02
+        });
+        const mesh = new THREE.Mesh(geometry.clone(), material);
+        mesh.position.set(point.x, point.y, point.z);
+        mesh.userData = point;
+        pointMeshes.push(mesh);
+        plotGroup.add(mesh);
+      });
+    }
+
+    function updatePointScale() {
+      const scale = Number(pointSize.value) / 0.075;
+      pointSizeValue.value = Number(pointSize.value).toFixed(2);
+      pointMeshes.forEach((mesh) => {
+        mesh.scale.setScalar(scale);
+      });
+    }
+
+    function updateHover(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointer, camera);
+      const intersections = raycaster.intersectObjects(pointMeshes.filter((mesh) => mesh.visible), false);
+      const nextHover = intersections[0]?.object ?? null;
+
+      if (hovered && hovered !== nextHover) {
+        hovered.scale.setScalar(Number(pointSize.value) / 0.075);
+        hovered.material.emissive.setHex(0x000000);
+      }
+
+      hovered = nextHover;
+      if (!hovered) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      hovered.scale.setScalar((Number(pointSize.value) / 0.075) * 1.65);
+      hovered.material.emissive.setHex(0x222222);
+      const point = hovered.userData;
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(event.clientX + 14, window.innerWidth - 176)}px`;
+      tooltip.style.top = `${Math.min(event.clientY + 14, window.innerHeight - 128)}px`;
+      tooltip.innerHTML = `
+        <strong>${point.species} #${point.id + 1}</strong>
+        PC1: ${point.pc1.toFixed(3)}<br>
+        PC2: ${point.pc2.toFixed(3)}<br>
+        PC3: ${point.pc3.toFixed(3)}
+      `;
+    }
+
+    function resetCamera() {
+      camera.position.set(5.2, 4.2, 5.6);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    function resize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.autoRotate = autoRotate.checked;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    try {
+      const response = await fetch("./outputs/iris_pca_points.json");
+      if (!response.ok) {
+        throw new Error("The PCA data file was not found.");
+      }
+      data = await response.json();
+    } catch (error) {
+      showError("Run python iris_pca_3d_demo.py, then serve this folder with python -m http.server 8000.");
+      throw error;
+    }
+
+    const normalized = normalizePoints(data.points);
+    buildLegend(data.targetNames);
+    addGridBox();
+    buildPoints(normalized);
+    updatePointScale();
+
+    sampleCount.textContent = `${data.points.length} samples`;
+    varianceText.textContent = `PC1-3 ${(data.explainedVarianceRatio.reduce((sum, value) => sum + value, 0) * 100).toFixed(1)}% variance`;
+
+    pointSize.addEventListener("input", updatePointScale);
+    resetView.addEventListener("click", resetCamera);
+    renderer.domElement.addEventListener("pointermove", updateHover);
+    renderer.domElement.addEventListener("pointerleave", () => {
+      tooltip.style.display = "none";
+      if (hovered) {
+        hovered.scale.setScalar(Number(pointSize.value) / 0.075);
+        hovered.material.emissive.setHex(0x000000);
+      }
+      hovered = null;
+    });
+    window.addEventListener("resize", resize);
+
+    resetCamera();
+    animate();
+  </script>
+</body>
+</html>
